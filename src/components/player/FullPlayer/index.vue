@@ -49,6 +49,8 @@ const initialLyricTimeMs = ref(0);
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 const hasTrack = computed(() => !!media.track);
 
+const getLyricTimeMs = (): number => getCurrentTime() + status.lyricOffsetMs;
+
 /** 精确播放时间（毫秒） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
   if (!status.trackLoading && !media.lyricLoading) {
@@ -56,13 +58,19 @@ const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
   }
 });
 
+const syncLyricTimeLoop = () => {
+  if (settings.lyric.engine === "amll" && !isPlaying.value) stopTick();
+  if (lyricMounted.value && !isLoading.value) startTick();
+  else stopTick();
+};
+
 /** 展开后 */
 const onAfterEnter = () => {
-  initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+  initialLyricTimeMs.value = getLyricTimeMs();
   lyricMounted.value = true;
   nextTick(() => {
     lyricRef.value?.resume();
-    startTick();
+    syncLyricTimeLoop();
   });
 };
 
@@ -80,24 +88,27 @@ const onAfterLeave = () => {
 // 重新挂载时，刷新初始时间
 watch(hasLyric, (value) => {
   if (value && lyricMounted.value) {
-    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+    initialLyricTimeMs.value = getLyricTimeMs();
   }
 });
+
+watch(isPlaying, syncLyricTimeLoop);
 
 // 歌词变化时先推送精确时间
 watch(
   () => media.parsedLyric,
-  () => lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs),
+  () => lyricRef.value?.setCurrentTime(getLyricTimeMs()),
 );
 
 // 切换歌词引擎时，重新计算初始并推送时间
 watch(
   () => settings.lyric.engine,
   () => {
-    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+    initialLyricTimeMs.value = getLyricTimeMs();
     nextTick(() => {
-      lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+      lyricRef.value?.setCurrentTime(getLyricTimeMs());
       if (isPlaying.value) lyricRef.value?.resume();
+      syncLyricTimeLoop();
     });
   },
 );

@@ -52,7 +52,6 @@ const settings = useSettingsStore();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const playerRef = ref<CoreLyricPlayer>();
 const bottomLineEl = ref<HTMLElement>();
-const clockInitialized = ref(false);
 
 // 是否被父组件冻结
 const isFrozen = ref(false);
@@ -180,11 +179,6 @@ onUnmounted(() => {
 watchEffect(() => {
   const player = playerRef.value;
   if (!player) return;
-  if (!clockInitialized.value) {
-    player.resume();
-    player.update(0);
-    clockInitialized.value = true;
-  }
   if (!isFrozen.value && !document.hidden) {
     if (props.playing) {
       player.resume();
