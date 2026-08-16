@@ -85,8 +85,8 @@ const writeConfig = (next: HotkeyConfig): HotkeyConfig => {
   return readConfig();
 };
 
-/** 卸载所有 globalShortcut + 清空冲突 */
-const unregisterAll = (): void => {
+/** 卸载 Electron 快捷键并清空冲突 */
+const unregisterElectronShortcuts = (): void => {
   globalShortcut.unregisterAll();
   conflicts = [];
 };
@@ -94,10 +94,10 @@ const unregisterAll = (): void => {
 /**
  * 注册全部 global accelerators（仅 Electron 模式）
  * 同 accelerator 重复 / OS 占用 / 解析异常 都计入 conflicts
- * globalEnabled = false 时只 unregisterAll 不注册新的
+ * globalEnabled = false 时只解绑，不注册新的
  */
-const applyAll = (): void => {
-  unregisterAll();
+const registerElectronShortcuts = (): void => {
+  unregisterElectronShortcuts();
   if (currentMode === "portal") return;
   const config = readConfig();
   if (!config.globalEnabled) {
@@ -157,6 +157,16 @@ const buildPortalShortcuts = (): PortalShortcut[] =>
       : undefined,
   }));
 
+/** 绑定 Portal 快捷键，失败时记录原因 */
+const bindPortalShortcuts = async (): Promise<boolean> => {
+  const res = await portalModule!.bindShortcuts(buildPortalShortcuts());
+  if (!res.ok) {
+    coreLog.error(`[portal] 绑定全局快捷键失败: ${res.error ?? "未知错误"}`);
+    return false;
+  }
+  return true;
+};
+
 /** 解绑当前 portal 会话并释放绑定（globalEnabled 关闭 / 退出 portal）入串行链 */
 const portalUnbindAll = (): Promise<void> =>
   enqueueTransition(async () => {
@@ -172,13 +182,33 @@ const portalUnbindAll = (): Promise<void> =>
 const portalBindAll = (): Promise<void> =>
   enqueueTransition(async () => {
     if (currentMode !== "portal" || !portalModule) return;
-    // 原生层绑定前已关闭旧会话，失败后实际无任何快捷键；直接 await switchToElectron()
-    // 会在当前节点内等自己排入链尾的节点而死锁，故作为链的下一节点排队回退
-    const res = await portalModule.bindShortcuts(buildPortalShortcuts());
-    if (!res.ok) {
-      coreLog.error(`[portal] 绑定全局快捷键失败: ${res.error ?? "未知错误"}`);
+    if (!readConfig().globalEnabled || (await bindPortalShortcuts())) return;
+    // 回退操作必须排在当前 transition 之后，避免等待自身造成死锁。
+    void switchToElectron();
+  });
+
+/** 切换到 Portal 模式并绑定当前配置 */
+const switchToPortal = (epoch: number): Promise<void> =>
+  enqueueTransition(async () => {
+    if (epoch !== portalEpoch) return;
+
+    currentMode = "portal";
+    unregisterElectronShortcuts();
+
+    const config = readConfig();
+    if (config.globalEnabled && !(await bindPortalShortcuts())) {
+      if (epoch !== portalEpoch) {
+        void portalModule!.unbindShortcuts();
+        return;
+      }
       void switchToElectron();
+      return;
     }
+
+    portalBound = config.globalEnabled;
+    conflicts = [];
+    broadcast("hotkey:conflicts", conflicts);
+    broadcastMode();
   });
 
 /**
@@ -193,7 +223,7 @@ const switchToElectron = (): Promise<void> =>
     portalBound = false;
     // 等待解绑完成释放按键后再注册 Electron，避免注册被占用
     if (portalModule) await portalModule.unbindShortcuts();
-    applyAll();
+    registerElectronShortcuts();
     broadcastMode();
   });
 
@@ -244,32 +274,7 @@ const ensurePortalReady = async (): Promise<void> => {
   await descriptionsReady;
   if (epoch !== portalEpoch) return;
 
-  // 绑定与解绑入同一串行链：确保前一个 switchToElectron 的解绑先完成，再切换并绑定 portal
-  await enqueueTransition(async () => {
-    if (epoch !== portalEpoch) return;
-    currentMode = "portal";
-    // 从 Electron 模式切回 portal 时，同键可能已在两个后端注册：先释放 globalShortcut，
-    // 避免一次按键触发两次或与 portal preferredTrigger 冲突（绑定失败时 switchToElectron 会重注册）
-    unregisterAll();
-    // globalEnabled=false 时不注册任何 portal 动作（与 Electron 模式语义一致）
-    const config = readConfig();
-    if (config.globalEnabled) {
-      const res = await portalModule!.bindShortcuts(buildPortalShortcuts());
-      if (epoch !== portalEpoch) {
-        void portalModule!.unbindShortcuts();
-        return;
-      }
-      if (!res.ok) {
-        coreLog.error(`[portal] 绑定全局快捷键失败: ${res.error ?? "未知错误"}`);
-        await switchToElectron();
-        return;
-      }
-    }
-    portalBound = config.globalEnabled;
-    conflicts = [];
-    broadcast("hotkey:conflicts", conflicts);
-    broadcastMode();
-  });
+  await switchToPortal(epoch);
 };
 
 /** 触发一次 portal 初始化（幂等，进行中则复用） */
@@ -320,7 +325,7 @@ export const initGlobalHotkey = (): void => {
 
 /** 退出清理 */
 export const cleanupGlobalHotkey = (): void => {
-  unregisterAll();
+  unregisterElectronShortcuts();
   if (portalModule) void portalModule.shutdown();
 };
 
@@ -406,7 +411,7 @@ export const probeAccelerator = (accelerator: string): boolean => {
     ok = false;
   }
   if (wasRegistered) {
-    applyAll();
+    registerElectronShortcuts();
   }
   return ok;
 };
@@ -414,12 +419,12 @@ export const probeAccelerator = (accelerator: string): boolean => {
 /**
  * 绑定变更后的重注册
  * - Electron 模式：整体重注册 globalShortcut
- * - portal 模式：globalEnabled 翻转时同步绑定/解绑，其余配置变更不重建会话
+ * - Portal 模式：只在 globalEnabled 翻转时绑定或解绑会话
  *   （避免覆盖用户在系统设置侧的自定义）
  */
 const syncRegistration = (): void => {
   if (currentMode !== "portal") {
-    applyAll();
+    registerElectronShortcuts();
     return;
   }
   const config = readConfig();
