@@ -24,3 +24,6 @@ minimumReleaseAgeExclude:
 
 overrides:
   node-abi: ^4.33.0
+patchedDependencies:
+  # TODO: 升级 AMLL 以删除此临时修复
+  "@applemusic-like-lyrics/core": patches/@applemusic-like-lyrics__core.patch
