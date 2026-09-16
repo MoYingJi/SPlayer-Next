@@ -1,5 +1,5 @@
 packages: []
-minimumReleaseAge: 4320
+
 allowBuilds:
   "@parcel/watcher": false
   better-sqlite3: true
@@ -7,6 +7,8 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   vue-demi: true
+
+minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - app-builder-lib@26.15.3
   - builder-util@26.15.3
@@ -24,6 +26,7 @@ minimumReleaseAgeExclude:
 
 overrides:
   node-abi: ^4.33.0
+
 patchedDependencies:
   # TODO: 升级 AMLL 以删除此临时修复
   "@applemusic-like-lyrics/core": patches/@applemusic-like-lyrics__core.patch
