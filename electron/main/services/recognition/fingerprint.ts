@@ -31,7 +31,7 @@ const toResult = (res: FingerprintResponse): FingerprintResult =>
 /** 解析 AFP 资产目录 */
 const resolveAfpDir = (): string | null => {
   const dir = app.isPackaged
-    ? path.join(process.resourcesPath, "afp")
+    ? path.join(path.dirname(app.getAppPath()), "afp")
     : path.join(app.getAppPath(), "resources", "afp");
   const files = ["afp.mjs", "afp.wasm.mjs"];
   return files.every((file) => fs.existsSync(path.join(dir, file))) ? dir : null;
