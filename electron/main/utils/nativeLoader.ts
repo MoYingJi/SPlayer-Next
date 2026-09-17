@@ -15,7 +15,7 @@ export const loadNativeModule = <T = unknown>(fileName: string, devDirName: stri
 
   if (app.isPackaged) {
     // 打包后: resources/native/audio-engine.node
-    nativeModulePath = path.join(process.resourcesPath, "native", fileName);
+    nativeModulePath = path.join(path.dirname(app.getAppPath()), "native", fileName);
   } else {
     // 开发时: native/audio-engine/audio-engine.node
     nativeModulePath = path.join(process.cwd(), "native", devDirName, fileName);
