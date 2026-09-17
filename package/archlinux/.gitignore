@@ -1,0 +1,9 @@
+/src/
+/pkg/
+
+# source
+/SPlayer-Next-git
+/ffmpeg_audio_sys.crate
+
+# packages
+/*.pkg.tar.*
