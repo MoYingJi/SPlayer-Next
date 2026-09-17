@@ -371,13 +371,16 @@ fn build_typed_stream_for_format(
 
 #[cfg(any(target_os = "linux", test))]
 fn format_pipewire_props(sample_rate: u32) -> String {
+    let mut props = serde_json::json!({
+        "application.id": "top.imsyy.splayer_next",
+        "application.name": "SPlayer-Next",
+        "application.icon-name": "top.imsyy.splayer_next",
+        "media.name": "Playback",
+    });
     if sample_rate > 0 {
-        format!(
-            r#"{{"node.rate":"1/{sample_rate}","application.id":"top.imsyy.splayer_next","application.name":"SPlayer-Next","application.icon-name":"top.imsyy.splayer_next","media.name":"Playback"}}"#
-        )
-    } else {
-        r#"{"application.id":"top.imsyy.splayer_next","application.name":"SPlayer-Next","application.icon-name":"top.imsyy.splayer_next","media.name":"Playback"}"#.to_string()
+        props["node.rate"] = format!("1/{sample_rate}").into();
     }
+    props.to_string()
 }
 
 #[cfg(target_os = "linux")]
