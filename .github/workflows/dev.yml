@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: dev-build-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
