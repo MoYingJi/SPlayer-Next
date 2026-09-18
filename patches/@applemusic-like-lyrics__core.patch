@@ -1,0 +1,138 @@
+diff --git a/dist/amll-core.cjs b/dist/amll-core.cjs
+index 819b12c2307970f3b2dc160b47c90bc9a560887d..c7d052ca3766e8fd78c4f9ab915b2a3826e448c6 100644
+--- a/dist/amll-core.cjs
++++ b/dist/amll-core.cjs
+@@ -1763,6 +1763,7 @@ var lyric_player_module_default = {
+ 	"playing": "FmKaba_playing",
+ 	"romanWord": "FmKaba_romanWord",
+ 	"rubyWord": "FmKaba_rubyWord",
++	"rubyBaseWord": "FmKaba_rubyBaseWord",
+ 	"tmpDisableTransition": "FmKaba_tmpDisableTransition",
+ 	"wordBody": "FmKaba_wordBody",
+ 	"wordWithRuby": "FmKaba_wordWithRuby"
+@@ -4131,9 +4132,10 @@ var LyricLineEl = class extends LyricLineBase {
+ 		const mainWordEl = document.createElement("span");
+ 		const subElements = [];
+ 		const romanWord = word.romanWord?.trim() ?? "";
+-		const wordContainer = hasRubyLine ? document.createElement("div") : mainWordEl;
++		const wordContainer = hasRubyLine ? document.createElement("span") : mainWordEl;
++		const wordTextContainer = hasRubyLine ? document.createElement("span") : wordContainer;
+ 		if (hasRubyLine) {
+-			const rubyWordEl = document.createElement("div");
++			const rubyWordEl = document.createElement("span");
+ 			const rubySegments = this.getRubySegments(word);
+ 			for (const ruby of rubySegments) {
+ 				const rubyPartEl = document.createElement("span");
+@@ -4145,6 +4147,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			rubyWordEl.classList.add(lyric_player_module_default.rubyWord);
+ 			mainWordEl.classList.add(lyric_player_module_default.wordWithRuby);
+ 			wordContainer.classList.add(lyric_player_module_default.wordBody);
++			wordTextContainer.classList.add(lyric_player_module_default.rubyBaseWord);
++			wordContainer.appendChild(wordTextContainer);
+ 			mainWordEl.appendChild(rubyWordEl);
+ 			mainWordEl.appendChild(wordContainer);
+ 		}
+@@ -4156,19 +4160,19 @@ var LyricLineEl = class extends LyricLineBase {
+ 				const charEl = document.createElement("span");
+ 				charEl.textContent = segment;
+ 				subElements.push(charEl);
+-				wordContainer.appendChild(charEl);
++				wordTextContainer.appendChild(charEl);
+ 			}
+ 			else for (const segment of Array.from(trimmedWord)) {
+ 				const charEl = document.createElement("span");
+ 				charEl.textContent = segment;
+ 				subElements.push(charEl);
+-				wordContainer.appendChild(charEl);
++				wordTextContainer.appendChild(charEl);
+ 			}
+ 		} else if (hasRomanLine) {
+ 			const wordEl = document.createElement("div");
+ 			wordEl.textContent = displayWord.trim();
+-			wordContainer.appendChild(wordEl);
+-		} else if (romanWord.length === 0) wordContainer.textContent = displayWord.trim();
++			wordTextContainer.appendChild(wordEl);
++		} else if (romanWord.length === 0) wordTextContainer.textContent = displayWord.trim();
+ 		if (hasRomanLine) {
+ 			const romanWordEl = document.createElement("div");
+ 			romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
+diff --git a/dist/amll-core.mjs b/dist/amll-core.mjs
+index 37bd9873e58044f0900c04c2ab80da5a6d29f16a..e7a088a01be76c0fa6f07d4ff4dcfb9d9bebb473 100644
+--- a/dist/amll-core.mjs
++++ b/dist/amll-core.mjs
+@@ -1737,6 +1737,7 @@ var lyric_player_module_default = {
+ 	"lyricSubLine": "FmKaba_lyricSubLine",
+ 	"playing": "FmKaba_playing",
+ 	"romanWord": "FmKaba_romanWord",
++	"rubyBaseWord": "FmKaba_rubyBaseWord",
+ 	"rubyWord": "FmKaba_rubyWord",
+ 	"tmpDisableTransition": "FmKaba_tmpDisableTransition",
+ 	"wordBody": "FmKaba_wordBody",
+@@ -4106,9 +4107,10 @@ var LyricLineEl = class extends LyricLineBase {
+ 		const mainWordEl = document.createElement("span");
+ 		const subElements = [];
+ 		const romanWord = word.romanWord?.trim() ?? "";
+-		const wordContainer = hasRubyLine ? document.createElement("div") : mainWordEl;
++		const wordContainer = hasRubyLine ? document.createElement("span") : mainWordEl;
++		const wordTextContainer = hasRubyLine ? document.createElement("span") : wordContainer;
+ 		if (hasRubyLine) {
+-			const rubyWordEl = document.createElement("div");
++			const rubyWordEl = document.createElement("span");
+ 			const rubySegments = this.getRubySegments(word);
+ 			for (const ruby of rubySegments) {
+ 				const rubyPartEl = document.createElement("span");
+@@ -4120,6 +4122,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			rubyWordEl.classList.add(lyric_player_module_default.rubyWord);
+ 			mainWordEl.classList.add(lyric_player_module_default.wordWithRuby);
+ 			wordContainer.classList.add(lyric_player_module_default.wordBody);
++			wordTextContainer.classList.add(lyric_player_module_default.rubyBaseWord);
++			wordContainer.appendChild(wordTextContainer);
+ 			mainWordEl.appendChild(rubyWordEl);
+ 			mainWordEl.appendChild(wordContainer);
+ 		}
+@@ -4131,19 +4135,19 @@ var LyricLineEl = class extends LyricLineBase {
+ 				const charEl = document.createElement("span");
+ 				charEl.textContent = segment;
+ 				subElements.push(charEl);
+-				wordContainer.appendChild(charEl);
++				wordTextContainer.appendChild(charEl);
+ 			}
+ 			else for (const segment of Array.from(trimmedWord)) {
+ 				const charEl = document.createElement("span");
+ 				charEl.textContent = segment;
+ 				subElements.push(charEl);
+-				wordContainer.appendChild(charEl);
++				wordTextContainer.appendChild(charEl);
+ 			}
+ 		} else if (hasRomanLine) {
+ 			const wordEl = document.createElement("div");
+ 			wordEl.textContent = displayWord.trim();
+-			wordContainer.appendChild(wordEl);
+-		} else if (romanWord.length === 0) wordContainer.textContent = displayWord.trim();
++			wordTextContainer.appendChild(wordEl);
++		} else if (romanWord.length === 0) wordTextContainer.textContent = displayWord.trim();
+ 		if (hasRomanLine) {
+ 			const romanWordEl = document.createElement("div");
+ 			romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
+diff --git a/dist/style.css b/dist/style.css
+index 70b5c0350240b7d82347f0f527659683f7b0b9e9..932d9b4223123017a22a4566c57fefc29b1f9618 100644
+--- a/dist/style.css
++++ b/dist/style.css
+@@ -112,10 +112,16 @@
+ 
+   & .FmKaba_wordBody {
+     flex-direction: column;
+-    align-items: center;
+     display: flex;
+   }
+ 
++  & .FmKaba_rubyBaseWord {
++    display: inline-flex;
++    flex-wrap: nowrap;
++    white-space: nowrap;
++    justify-content: center;
++  }
++
+   & > span, & span.FmKaba_emphasizeWrapper {
+     white-space: pre-wrap;
+     vertical-align: bottom;
