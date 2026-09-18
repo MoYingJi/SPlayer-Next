@@ -193,12 +193,17 @@ package() {
     install -Dm644 \
         dist/linux-unpacked/resources/app.asar \
         "$pkgdir/usr/lib/splayer-next/app.asar"
-    cp -a --no-preserve=ownership \
-        dist/linux-unpacked/resources/app.asar.unpacked \
-        "$pkgdir/usr/lib/splayer-next/"
-    cp -a --no-preserve=ownership \
-        dist/linux-unpacked/resources/native \
-        "$pkgdir/usr/lib/splayer-next/"
+
+    copy_dir_names=(
+        "app.asar.unpacked"
+        "native"
+        "afp"
+    )
+    for name in "${copy_dir_names[@]}"; do
+        cp -a --no-preserve=ownership \
+            "dist/linux-unpacked/resources/$name" \
+            "$pkgdir/usr/lib/splayer-next/"
+    done
 
     install -Dm755 \
         "$srcdir/splayer-next.sh" \
