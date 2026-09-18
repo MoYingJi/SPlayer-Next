@@ -1,5 +1,5 @@
 diff --git a/dist/amll-core.cjs b/dist/amll-core.cjs
-index 819b12c2307970f3b2dc160b47c90bc9a560887d..94068895a62104895639b91c71414d37b08bdb7b 100644
+index 819b12c2307970f3b2dc160b47c90bc9a560887d..c7d052ca3766e8fd78c4f9ab915b2a3826e448c6 100644
 --- a/dist/amll-core.cjs
 +++ b/dist/amll-core.cjs
 @@ -1763,6 +1763,7 @@ var lyric_player_module_default = {
@@ -57,7 +57,7 @@ index 819b12c2307970f3b2dc160b47c90bc9a560887d..94068895a62104895639b91c71414d37
  			const romanWordEl = document.createElement("div");
  			romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
 diff --git a/dist/amll-core.mjs b/dist/amll-core.mjs
-index 37bd9873e58044f0900c04c2ab80da5a6d29f16a..7deefee97fd312955b12c2f6073b9a51846b1cdb 100644
+index 37bd9873e58044f0900c04c2ab80da5a6d29f16a..e7a088a01be76c0fa6f07d4ff4dcfb9d9bebb473 100644
 --- a/dist/amll-core.mjs
 +++ b/dist/amll-core.mjs
 @@ -1737,6 +1737,7 @@ var lyric_player_module_default = {
@@ -115,13 +115,17 @@ index 37bd9873e58044f0900c04c2ab80da5a6d29f16a..7deefee97fd312955b12c2f6073b9a51
  			const romanWordEl = document.createElement("div");
  			romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
 diff --git a/dist/style.css b/dist/style.css
-index 70b5c0350240b7d82347f0f527659683f7b0b9e9..417b4485851fc7cc8fb5742584e39d3fad829673 100644
+index 70b5c0350240b7d82347f0f527659683f7b0b9e9..932d9b4223123017a22a4566c57fefc29b1f9618 100644
 --- a/dist/style.css
 +++ b/dist/style.css
-@@ -116,6 +116,13 @@
+@@ -112,10 +112,16 @@
+ 
+   & .FmKaba_wordBody {
+     flex-direction: column;
+-    align-items: center;
      display: flex;
    }
-
+ 
 +  & .FmKaba_rubyBaseWord {
 +    display: inline-flex;
 +    flex-wrap: nowrap;
