@@ -106,6 +106,8 @@ prepare() {
 
     cd "$_source"
 
+    git submodule update --init --recursive
+
     local upstream_electron_version
     upstream_electron_version="$(
       node -p "require('./package.json').devDependencies.electron" \
@@ -131,6 +133,10 @@ EOF
         --frozen-lockfile \
         --ignore-scripts \
         --store-dir "$srcdir/pnpm-store"
+    pnpm run vendors:setup \
+        --frozen-lockfile \
+        --ignore-scripts \
+        --store-dir "$srcdir/pnpm-store"
 }
 
 build() {
@@ -143,6 +149,8 @@ build() {
     electron_version=${electron_version#v}
 
     pnpm build:native
+
+    pnpm run vendors:build
 
     # Linux 允许共享库中存在未解析的符号
     # 与其发布一个仅在 Electron 加载时才会出错的模块，不如在此处构建失败
