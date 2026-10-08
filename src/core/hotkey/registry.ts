@@ -6,6 +6,7 @@
 
 import type { HotkeyActionId } from "@shared/types/hotkey";
 import { useStatusStore } from "@/stores/status";
+import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import * as player from "@/core/player";
 
 /** 调音量步长 */
@@ -101,6 +102,10 @@ export const buildRegistry = (): void => {
     if (document.activeElement !== el) return false;
     el.select();
     return true;
+  });
+  // 打开设置
+  handlers.set("view.openSettings", () => {
+    useSettingsDialog().show();
   });
 };
 
