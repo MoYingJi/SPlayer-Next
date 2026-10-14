@@ -4,7 +4,7 @@ name: Build Dev
 on:
   push:
     branches:
-      - dev
+      - dev-mo
     paths:
       - "src/**"
       - "electron/**"
