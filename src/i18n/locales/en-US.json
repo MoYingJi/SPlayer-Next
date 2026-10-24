@@ -902,7 +902,18 @@
       "label": "Transition mode",
       "description": "Adjust how songs sound when they change",
       "none": "No transition",
-      "crossfade": "Crossfade"
+      "crossfade": "Crossfade",
+      "automix": "AutoMix"
+    },
+    "automixComponents": {
+      "label": "AutoMix models",
+      "description": "Beat-match compatible tracks, otherwise use crossfade",
+      "configure": "Configure models",
+      "download": "Download",
+      "ready": "Installed",
+      "unsupported": "Unavailable",
+      "missing": "Not installed",
+      "error": "Installation failed"
     },
     "transitionPreference": {
       "label": "Handoff preference",
@@ -2287,6 +2298,21 @@
       "button": "Clear All",
       "confirmTitle": "Clear all database caches?",
       "confirmDesc": "All database caches above will be cleared. This cannot be undone."
+    },
+    "automixModels": {
+      "beat": {
+        "label": "Beat model (Beat This!)"
+      },
+      "demucs": {
+        "label": "Stem model (Demucs)"
+      },
+      "runtime": {
+        "label": "Analysis runtime"
+      }
+    },
+    "autoMixEnhanced": {
+      "label": "Stem enhancement",
+      "description": "Hand off drums, bass and vocals separately; requires the stem model"
     }
   },
   "collection": {

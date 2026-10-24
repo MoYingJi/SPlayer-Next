@@ -6,6 +6,8 @@ import IconLucidePlay from "~icons/lucide/play";
 import { getActiveDeviceId } from "@/core/player";
 import { setDeviceVolume } from "@/services/deviceVolume";
 import { useStatusStore } from "@/stores/status";
+import AutoMixComponents from "@/components/settings/custom/AutoMixComponents.vue";
+import { isAutoMixReady } from "@/services/automix";
 
 const playerCategory: SettingCategory = {
   id: "player",
@@ -136,11 +138,15 @@ const playerCategory: SettingCategory = {
           options: [
             { value: "none", labelKey: "settings.transitionMode.none" },
             { value: "crossfade", labelKey: "settings.transitionMode.crossfade" },
+            {
+              value: "automix",
+              labelKey: "settings.transitionMode.automix",
+            },
           ],
           defaultValue: "none",
           confirm: {
             when: (next) =>
-              next === "crossfade" &&
+              (next === "crossfade" || next === "automix") &&
               (!useSettingsStore().system.cache.songCache.enabled ||
                 !useSettingsStore().system.cache.songCache.cacheStreaming),
             titleKey: "settings.confirm.preloadCacheTitle",
@@ -148,7 +154,7 @@ const playerCategory: SettingCategory = {
             type: "warning",
           },
           action: async (mode) => {
-            if (mode !== "crossfade") return;
+            if (mode !== "crossfade" && mode !== "automix") return;
             const settings = useSettingsStore();
             settings.player.preloadNextTrack = true;
             if (!settings.system.cache.songCache.enabled) {
@@ -173,6 +179,20 @@ const playerCategory: SettingCategory = {
           ],
           childrenCondition: () => useSettingsStore().player.transitionMode === "crossfade",
           hideChildren: true,
+        },
+        {
+          key: "autoMixEnhanced",
+          type: "switch",
+          binding: { store: "settings", path: "player.autoMixEnhanced" },
+          defaultValue: false,
+          visible: () => useSettingsStore().player.transitionMode === "automix",
+          disabled: () => !isAutoMixReady(true),
+        },
+        {
+          key: "automixComponents",
+          type: "custom",
+          component: AutoMixComponents,
+          visible: () => useSettingsStore().player.transitionMode === "automix",
         },
       ],
     },

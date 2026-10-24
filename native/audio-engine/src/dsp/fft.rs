@@ -77,6 +77,7 @@ impl FftAnalyzer {
     }
 
     /// 直接从交织立体声样本推入（由播放线程调用），一次遍历无需中间分配
+    /// @param interleaved - 混音后的交错立体声采样
     pub fn push_interleaved_samples(&self, interleaved: &[f32]) {
         // 频谱允许丢弃一次更新，音频回调不能等待分析线程。
         let Some(mut buffer) = self.sample_buffer.try_lock() else {
