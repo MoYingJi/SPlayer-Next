@@ -39,6 +39,9 @@ const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   cancel: vi.fn(),
   lyric: vi.fn(),
+  componentStatus: vi.fn(),
+  componentSubscribe: vi.fn(),
+  componentUnsubscribe: vi.fn(),
 }));
 vi.mock("@/stores/settings", () => ({ useSettingsStore: () => mocks.settings }));
 vi.mock("@/stores/status", () => ({ useStatusStore: () => mocks.status }));
@@ -65,10 +68,18 @@ describe("下一曲真实预载", () => {
     mocks.settings.player.transitionPreference = "standard";
     mocks.settings.system.cache.songCache = { enabled: true, cacheStreaming: true };
     mocks.candidate.track = { id: "next", source: "netease" };
-    mocks.prepare.mockResolvedValue(true);
+    mocks.prepare.mockResolvedValue({ ready: true, autoMixReady: true });
     mocks.cancel.mockResolvedValue(undefined);
+    mocks.componentStatus.mockResolvedValue({ state: "missing", models: [] });
+    mocks.componentSubscribe.mockReturnValue(mocks.componentUnsubscribe);
     Object.assign(window, {
-      api: { player: { prepareNext: mocks.prepare, cancelPrepared: mocks.cancel } },
+      api: {
+        player: { prepareNext: mocks.prepare, cancelPrepared: mocks.cancel },
+        automix: {
+          onStatus: mocks.componentSubscribe,
+          getStatus: mocks.componentStatus,
+        },
+      },
     });
   });
 
@@ -95,6 +106,100 @@ describe("下一曲真实预载", () => {
     expect(preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId).toEqual(
       expect.any(String),
     );
+  });
+
+  it("AutoMix 分析不可用时将 PCM 交给交叉过渡，在途检查不能反复消费和重建槽位", async () => {
+    mocks.settings.player.transitionMode = "automix";
+    mocks.prepare.mockResolvedValue({ ready: true, autoMixReady: false });
+    mocks.resolve.mockResolvedValue({
+      source: "C:/cache/next.bin",
+      provider: "cache",
+      fromCache: true,
+    });
+    const preloader = await import("./nextTrackPreloader");
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    const prepared = preloader.beginPreparedTransition(mocks.candidate.track as Track);
+    expect(prepared?.preparedId).toBeTruthy();
+    expect(prepared?.autoMixReady).toBe(false);
+    expect(mocks.prepare.mock.calls[0][3]).toBe("standard");
+    for (let i = 0; i < 3; i++) {
+      expect(preloader.beginPreparedTransition(mocks.candidate.track as Track)).toBeNull();
+      preloader.scheduleNextTrackPreload();
+      await flushPromises();
+    }
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(preloader.consumePreloadedTrack(mocks.candidate.track as Track)).toBeNull();
+  });
+
+  it("AutoMix 提前准备完成时不提前变速，按显示时间在计划前两秒提交", async () => {
+    mocks.settings.player.transitionMode = "automix";
+    mocks.prepare.mockResolvedValue({ ready: true, autoMixReady: true, autoMixStartMs: 20_000 });
+    mocks.resolve.mockResolvedValue({ source: "next.flac", provider: "local", fromCache: false });
+    const preloader = await import("./nextTrackPreloader");
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    const track = mocks.candidate.track as Track;
+    expect(preloader.beginPreparedTransition(track, undefined, 10_000)).toBeNull();
+    expect(preloader.beginPreparedTransition(track, undefined, 17_999)).toBeNull();
+    expect(preloader.peekPreparedTrack(track)?.preparedId).toBeTruthy();
+    expect(preloader.beginPreparedTransition(track, undefined, 18_000)?.preparedId).toBeTruthy();
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+  });
+
+  it("原生交接拒绝后保留音源等待正常切歌，后续进度检查不再创建 PCM", async () => {
+    mocks.resolve.mockResolvedValue({ source: "next.flac", provider: "local", fromCache: false });
+    const preloader = await import("./nextTrackPreloader");
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    const prepared = preloader.beginPreparedTransition(mocks.candidate.track as Track)!;
+    preloader.finishPreparedTransition(prepared.preparedId!, prepared);
+    for (let i = 0; i < 3; i++) {
+      preloader.scheduleNextTrackPreload();
+      expect(preloader.beginPreparedTransition(mocks.candidate.track as Track)).toBeNull();
+      await flushPromises();
+    }
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+    expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith(prepared.preparedId);
+    expect(preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.source?.source).toBe(
+      "next.flac",
+    );
+  });
+
+  it("未使用分轨增强时，其他模型的下载和进度更新不会作废已就绪 PCM", async () => {
+    mocks.settings.player.transitionMode = "automix";
+    mocks.resolve.mockResolvedValue({ source: "next.flac", provider: "local", fromCache: false });
+    const service = await import("./automix");
+    service.autoMixComponentStatus.value = {
+      state: "missing",
+      models: [
+        { id: "beat", state: "ready", received: 1, total: 1 },
+        { id: "runtime", state: "ready", received: 1, total: 1 },
+      ],
+    };
+    const preloader = await import("./nextTrackPreloader");
+    preloader.scheduleNextTrackPreload();
+    await flushPromises();
+    for (const received of [0, 50, 99]) {
+      service.autoMixComponentStatus.value = {
+        state: received === 99 ? "ready" : "downloading",
+        models: [
+          { id: "beat", state: "ready", received: 1, total: 1 },
+          { id: "runtime", state: "ready", received: 1, total: 1 },
+          {
+            id: "demucs",
+            state: received === 99 ? "ready" : "downloading",
+            received,
+            total: 99,
+          },
+        ],
+      };
+      preloader.scheduleNextTrackPreload();
+      await flushPromises();
+    }
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+    expect(mocks.cancel).not.toHaveBeenCalled();
   });
 
   it("解析返回空值后允许同一候选重新预载", async () => {

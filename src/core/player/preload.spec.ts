@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
   return {
     track,
     transitionPreference: "standard" as "conservative" | "standard" | "eager",
+    transitionMode: "crossfade" as "crossfade" | "automix",
     media,
     status: {
       currentTrack: { ...track, id: "old" },
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => {
       position: 0,
       lyricOffsetMs: 0,
       speed: 1,
+      pitch: 0,
       trackLoading: false,
       transitioning: false,
       isPlaying: true,
@@ -48,7 +50,10 @@ vi.mock("./stats", () => ({ installPlayStats: vi.fn(), onTrackEnded: mocks.onTra
 vi.mock("@/stores/settings", () => ({
   useSettingsStore: () => ({
     preset: { skipKeywordsSongs: false, skipTrackKeywords: [] },
-    player: { transitionMode: "crossfade", transitionPreference: mocks.transitionPreference },
+    player: {
+      transitionMode: mocks.transitionMode,
+      transitionPreference: mocks.transitionPreference,
+    },
   }),
 }));
 vi.mock("@/stores/status", () => ({ useStatusStore: () => mocks.status }));
@@ -88,6 +93,7 @@ vi.mock("@/services/audioSource", () => ({ resolveTrackSource: mocks.resolve }))
 vi.mock("@/services/nextTrackPreloader", () => ({
   invalidateNextTrackPreload: mocks.invalidate,
   consumePreloadedTrack: mocks.consume,
+  peekPreparedTrack: mocks.peek,
   beginPreparedTransition: (_track: Track, expectedId?: string) => {
     const result = mocks.peek();
     if (!result || (expectedId && result.preparedId !== expectedId)) return null;
@@ -334,6 +340,9 @@ describe("交叉过渡的队列交接", () => {
     mocks.status.abLoop.enable = false;
     mocks.status.fmMode = false;
     mocks.transitionPreference = "standard";
+    mocks.transitionMode = "crossfade";
+    mocks.track.duration = 1000;
+    mocks.status.pitch = 0;
     mocks.peek.mockReturnValue({
       preparedId: "next-slot",
       source: { source: "C:/cache/next.bin", fromCache: true, provider: "cache" },
@@ -363,6 +372,72 @@ describe("交叉过渡的队列交接", () => {
     expect(mocks.load).not.toHaveBeenCalled();
     expect(mocks.stop).not.toHaveBeenCalled();
     expect(mocks.onTrackEnded).toHaveBeenCalledWith(false);
+  });
+
+  it("AutoMix 重叠期间保留上一曲界面，原生完成后才切换到下一曲的真实进度", async () => {
+    mocks.transitionMode = "automix";
+    mocks.peek.mockReturnValue({
+      preparedId: "next-slot",
+      source: { source: "C:/cache/next.bin", fromCache: true, provider: "cache" },
+      autoMixReady: true,
+    });
+    mocks.track.duration = 32000;
+    let complete!: (value: unknown) => void;
+    mocks.transition.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const { trySmartTransition } = await import("./index");
+    const pending = trySmartTransition(1000);
+    expect(mocks.status.playIndex).toBe(0);
+    expect(mocks.media.track.id).toBe("old");
+    expect(mocks.load).not.toHaveBeenCalled();
+    complete({
+      success: true,
+      data: {
+        detail: {},
+        mediaInfo: { duration: 32000 },
+        playback: { position: 8000, state: "playing", speed: 1, timestamp: Date.now() },
+      },
+    });
+    await pending;
+    expect(mocks.status.playIndex).toBe(1);
+    expect(mocks.media.track.id).toBe("next");
+    expect(mocks.status.position).toBeGreaterThanOrEqual(8000);
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.transition.mock.calls[0][5]).toBe("automix");
+  });
+
+  it.each([
+    [1.25, 0],
+    [1, 2],
+  ])("用户使用 %sx 和 %s 半音时不执行 AutoMix", async (speed, pitch) => {
+    mocks.transitionMode = "automix";
+    mocks.peek.mockReturnValue({ preparedId: "next-slot", autoMixReady: true });
+    mocks.status.speed = speed;
+    mocks.status.pitch = pitch;
+    const { trySmartTransition } = await import("./index");
+    await trySmartTransition(5000);
+    expect(mocks.transition).not.toHaveBeenCalled();
+  });
+
+  it("AutoMix 无计划时只在交叉过渡窗口内提交，沿用旧曲界面直到完成", async () => {
+    mocks.transitionMode = "automix";
+    const { trySmartTransition } = await import("./index");
+    await trySmartTransition(1000);
+    expect(mocks.transition).not.toHaveBeenCalled();
+    expect(mocks.consume).not.toHaveBeenCalled();
+    let complete!: (value: unknown) => void;
+    mocks.transition.mockImplementationOnce(() => new Promise((resolve) => (complete = resolve)));
+    const pending = trySmartTransition(5000);
+    expect(mocks.transition.mock.calls[0]).toHaveLength(5);
+    expect(mocks.media.track.id).toBe("old");
+    complete({ success: true, data: { detail: {}, mediaInfo: { duration: 1000 } } });
+    await pending;
+    expect(mocks.media.track.id).toBe("next");
+    expect(mocks.load).not.toHaveBeenCalled();
   });
 
   it("交接采用真实锚点并保留暂停状态，不将歌词归零", async () => {

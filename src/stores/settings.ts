@@ -163,6 +163,7 @@ export const useSettingsStore = defineStore(
       preloadNextTrack: false,
       transitionMode: "none",
       transitionPreference: "standard",
+      autoMixEnhanced: false,
       searchPlayBehavior: "current",
       songListPlayBehavior: "current",
     });
@@ -384,7 +385,8 @@ export const useSettingsStore = defineStore(
           preset: PresetSettings;
           player: PlayerSettings;
         };
-        if (player.transitionMode !== "crossfade") player.transitionMode = "none";
+        if (player.transitionMode !== "crossfade" && player.transitionMode !== "automix")
+          player.transitionMode = "none";
         if (
           player.transitionPreference !== "conservative" &&
           player.transitionPreference !== "eager"

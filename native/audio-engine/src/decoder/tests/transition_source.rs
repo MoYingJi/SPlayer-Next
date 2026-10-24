@@ -1,10 +1,176 @@
 use super::*;
 use crate::decoder::buffer::AudioChunk;
 
+/// 构造统一测试时间轴，人声在中点交接，其余声部沿完整窗口变化
+fn mix_envelopes() -> [MixEnvelope; 8] {
+    let mut spans = [MixEnvelope {
+        start: 0.0,
+        end: 1.0,
+    }; 8];
+    spans[2] = MixEnvelope {
+        start: 0.45,
+        end: 0.55,
+    };
+    spans[6] = spans[2];
+    spans
+}
+
+/// 构造只有人声的已处理音源，用于检验交接互斥和取消恢复
+/// @param level - 固定人声幅度
+/// @returns 同时包含主路和对齐声部的有限缓冲
+fn voice_buffered(level: f32) -> Arc<Shared> {
+    let shared = Shared::new(1000, 1);
+    shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        player_samples: vec![level; 2000],
+        fft_samples: Vec::new(),
+        source_sample_count: 2000,
+        stem_samples: Some(Box::new([
+            vec![0.0; 2000],
+            vec![0.0; 2000],
+            vec![level; 2000],
+        ])),
+    });
+    shared.mark_output_eof();
+    shared
+}
+
+#[test]
+fn stem_handoff_does_not_mix_two_singers_throughout_the_instrumental_blend() {
+    let mut source = TransitionSource::new(voice_buffered(0.3), Arc::new(FftAnalyzer::new()));
+    source
+        .control()
+        .queue(
+            voice_buffered(0.6),
+            TransitionPlan {
+                auto_start_sample: Some(0),
+                fade_samples: 1000,
+                envelopes: Some(mix_envelopes()),
+                stem_mix: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    source.begin_callback();
+    let samples: Vec<f32> = (0..1100).map(|_| source.next().unwrap()).collect();
+    assert!((samples[300] - 0.3).abs() < 1e-5);
+    assert!((samples[700] - 0.6).abs() < 1e-5);
+    assert!(samples[450..550].iter().all(|sample| *sample > 0.29));
+    assert!((samples[1001] - 0.6).abs() < 1e-5);
+}
+
+/// 人声提前进入时伴奏仍沿原电平曲线变化，取消后恢复原曲
+#[test]
+fn vocal_entry_preserves_the_selected_backing_level_curve() {
+    let mut source = TransitionSource::new(buffered(vec![0.4; 2000]), Arc::new(FftAnalyzer::new()));
+    let control = source.control();
+    let mut spans = [MixEnvelope {
+        start: 0.8,
+        end: 1.0,
+    }; 8];
+    spans[2] = MixEnvelope {
+        start: 0.0,
+        end: 0.1,
+    };
+    spans[6] = MixEnvelope {
+        start: 0.1,
+        end: 0.2,
+    };
+    control
+        .queue(
+            voice_buffered(0.2),
+            TransitionPlan {
+                auto_start_sample: Some(0),
+                fade_samples: 1000,
+                envelopes: Some(spans),
+                level_ratio: Some(0.5),
+                stem_mix: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    source.begin_callback();
+    let samples: Vec<f32> = (0..500).map(|_| source.next().unwrap()).collect();
+    assert!((samples[0] - 0.4).abs() < 1e-5);
+    assert!((samples[300] - 0.54).abs() < 1e-5);
+    assert!((samples[450] - 0.51).abs() < 1e-5);
+    control.cancel();
+    for _ in 0..60 {
+        source.next();
+    }
+    assert!((source.next().unwrap() - 0.4).abs() < 1e-5);
+}
+
+/// 改变空人声的包络不能改变伴奏的任何输出采样
+#[test]
+fn silent_vocal_envelopes_leave_the_backing_unchanged() {
+    let outputs: Vec<Vec<f32>> = [0.0, 0.7]
+        .into_iter()
+        .map(|at| {
+            let mut source =
+                TransitionSource::new(buffered(vec![0.4; 2000]), Arc::new(FftAnalyzer::new()));
+            let mut spans = mix_envelopes();
+            spans[2] = MixEnvelope {
+                start: at,
+                end: at + 0.2,
+            };
+            spans[6] = spans[2];
+            source
+                .control()
+                .queue(
+                    voice_buffered(0.0),
+                    TransitionPlan {
+                        auto_start_sample: Some(0),
+                        fade_samples: 1000,
+                        envelopes: Some(spans),
+                        level_ratio: Some(0.5),
+                        stem_mix: true,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            source.begin_callback();
+            (0..1100).map(|_| source.next().unwrap()).collect()
+        })
+        .collect();
+    assert_eq!(outputs[0], outputs[1]);
+}
+
+#[test]
+fn cancelling_stem_mix_restores_the_original_voice_without_changing_tracks() {
+    let mut source = TransitionSource::new(voice_buffered(0.3), Arc::new(FftAnalyzer::new()));
+    let control = source.control();
+    let signals = control
+        .queue(
+            voice_buffered(0.6),
+            TransitionPlan {
+                auto_start_sample: Some(0),
+                fade_samples: 1000,
+                envelopes: Some(mix_envelopes()),
+                stem_mix: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    source.begin_callback();
+    for _ in 0..700 {
+        source.next();
+    }
+    control.cancel();
+    for _ in 0..60 {
+        source.next();
+    }
+    assert!(signals.cancelled.load(Ordering::Acquire));
+    assert!(!signals.completed.load(Ordering::Acquire));
+    assert!((source.next().unwrap() - 0.3).abs() < 1e-5);
+}
+
 fn buffered(samples: Vec<f32>) -> Arc<Shared> {
     let shared = Shared::new(1_000, 1);
     let count = samples.len() as u64;
     shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: samples,
         fft_samples: Vec::new(),
         source_sample_count: count,
@@ -61,6 +227,8 @@ fn stereo_buffered(samples: Vec<f32>) -> Arc<Shared> {
     let shared = Shared::new(1_000, 2);
     let count = samples.len() as u64;
     shared.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: samples,
         fft_samples: Vec::new(),
         source_sample_count: count,
@@ -81,6 +249,7 @@ fn plan(
         fade_samples,
         quiet_threshold,
         quiet_windows_required: windows,
+        ..Default::default()
     }
 }
 
@@ -111,6 +280,127 @@ fn crossfade_keeps_one_output_source_and_skips_quiet_intro() {
     assert!(signals.started.load(Ordering::Acquire));
     assert!(signals.completed.load(Ordering::Acquire));
     control.drain_retired();
+}
+
+#[test]
+fn automix_uses_source_position_and_never_skips_the_planned_intro() {
+    let first = buffered(vec![0.5; 1000]);
+    let mut incoming = vec![0.0; 20];
+    incoming.extend(vec![0.4; 1000]);
+    let second = buffered(incoming);
+    let mut source = TransitionSource::new(first, Arc::new(FftAnalyzer::new()));
+    let control = source.control();
+    let signals = control
+        .queue(
+            Arc::clone(&second),
+            TransitionPlan {
+                auto_start_sample: Some(100),
+                fade_samples: 100,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    source.begin_callback();
+    for _ in 0..100 {
+        source.next();
+    }
+    assert!(!signals.started.load(Ordering::Acquire));
+    source.next();
+    assert!(signals.started.load(Ordering::Acquire));
+    assert_eq!(second.samples_consumed_count(), 0);
+    for _ in 0..99 {
+        source.next();
+    }
+    assert!(signals.completed.load(Ordering::Acquire));
+    assert_eq!(second.samples_consumed_count(), 100);
+}
+
+#[test]
+fn automix_executes_planned_envelopes_without_a_fixed_middle_plateau() {
+    for (a, b) in [(0.4, 0.0), (0.0, 0.4)] {
+        let mut source =
+            TransitionSource::new(buffered(vec![a; 1000]), Arc::new(FftAnalyzer::new()));
+        source
+            .control()
+            .queue(
+                buffered(vec![b; 1000]),
+                TransitionPlan {
+                    auto_start_sample: Some(100),
+                    fade_samples: 400,
+                    envelopes: Some(mix_envelopes()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        source.begin_callback();
+        let output: Vec<f32> = (0..600).map(|_| source.next().unwrap()).collect();
+        assert!((output[100] - a).abs() < 0.0001);
+        assert!((output[300] - 0.4 / 2.0_f32.sqrt()).abs() < 0.0001);
+        assert!((output[220] - output[380]).abs() > 0.1);
+        assert!((output[500] - b).abs() < 0.0001);
+    }
+}
+
+#[test]
+fn automix_attenuates_the_louder_side_without_amplifying_quiet_audio() {
+    for (a, b) in [(0.4, 0.0), (0.0, 0.1)] {
+        let mut source =
+            TransitionSource::new(buffered(vec![a; 1000]), Arc::new(FftAnalyzer::new()));
+        source
+            .control()
+            .queue(
+                buffered(vec![b; 1000]),
+                TransitionPlan {
+                    auto_start_sample: Some(100),
+                    fade_samples: 400,
+                    level_ratio: Some(0.5),
+                    envelopes: Some(mix_envelopes()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        source.begin_callback();
+        let output: Vec<f32> = (0..600).map(|_| source.next().unwrap()).collect();
+        assert!((output[100] - a).abs() < 0.0001);
+        assert!(output.iter().all(|sample| *sample <= a.max(b) + 0.0001));
+        let expected = if a > 0.0 { a * 0.75 } else { b } / 2.0_f32.sqrt();
+        assert!((output[300] - expected).abs() < 0.0001);
+        assert!((output[500] - b).abs() < 0.0001);
+    }
+}
+
+/// 取消对拍后恢复原曲增益，并释放下一曲槽位
+#[test]
+fn cancelling_balanced_automix_restores_outgoing_and_releases_incoming() {
+    let mut source = TransitionSource::new(buffered(vec![0.4; 1000]), Arc::new(FftAnalyzer::new()));
+    let control = source.control();
+    let incoming = buffered(vec![0.1; 1000]);
+    let incoming_weak = Arc::downgrade(&incoming);
+    let signals = control
+        .queue(
+            incoming,
+            TransitionPlan {
+                auto_start_sample: Some(100),
+                fade_samples: 400,
+                level_ratio: Some(0.25),
+                bass_swap: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    source.begin_callback();
+    for _ in 0..300 {
+        source.next();
+    }
+    control.cancel();
+    for _ in 0..60 {
+        source.next();
+    }
+    assert!(signals.cancelled.load(Ordering::Acquire));
+    assert!(!signals.completed.load(Ordering::Acquire));
+    control.drain_retired();
+    assert!(incoming_weak.upgrade().is_none());
+    assert!((source.next().unwrap() - 0.4).abs() < 0.0001);
 }
 
 #[test]
@@ -241,6 +531,8 @@ fn underrun_keeps_outgoing_gain_and_resumes_the_envelope() {
     let first = buffered(vec![0.6; 1000]);
     let second = Shared::new(1000, 1);
     second.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: vec![0.4; 60],
         fft_samples: vec![],
         source_sample_count: 60,
@@ -261,6 +553,8 @@ fn underrun_keeps_outgoing_gain_and_resumes_the_envelope() {
     }
     assert!(!signals.completed.load(Ordering::Acquire));
     second.push_output(AudioChunk {
+        normalization_gain: 1.0,
+        stem_samples: None,
         player_samples: vec![0.4; 200],
         fft_samples: vec![],
         source_sample_count: 200,

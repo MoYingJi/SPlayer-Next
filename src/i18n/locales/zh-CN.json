@@ -902,7 +902,18 @@
       "label": "过渡方式",
       "description": "调整歌曲在交替时的播放效果",
       "none": "无过渡",
-      "crossfade": "交叉过渡"
+      "crossfade": "交叉过渡",
+      "automix": "AutoMix 智能混音"
+    },
+    "automixComponents": {
+      "label": "AutoMix 模型",
+      "description": "适合时对拍混音，否则采用交叉过渡",
+      "configure": "模型配置",
+      "download": "下载",
+      "ready": "已安装",
+      "unsupported": "暂不支持",
+      "missing": "未安装",
+      "error": "安装失败"
     },
     "transitionPreference": {
       "label": "交接倾向",
@@ -2260,6 +2271,21 @@
       "button": "清空全部",
       "confirmTitle": "清空全部数据库缓存？",
       "confirmDesc": "将删除上方全部数据库缓存，操作不可恢复"
+    },
+    "automixModels": {
+      "beat": {
+        "label": "节拍模型（Beat This!）"
+      },
+      "demucs": {
+        "label": "分轨模型（Demucs）"
+      },
+      "runtime": {
+        "label": "分析运行时"
+      }
+    },
+    "autoMixEnhanced": {
+      "label": "分轨增强",
+      "description": "分别衔接鼓、低频与人声，需分轨模型"
     }
   },
   "collection": {
