@@ -4,7 +4,7 @@ name: Build Dev
 on:
   push:
     branches:
-      - dev
+      - dev-mo
     paths:
       - "src/**"
       - "electron/**"
@@ -15,6 +15,9 @@ on:
       - "scripts/**"
       - "package.json"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".gitmodules"
+      - "vendor/**"
       - "electron-builder.config.ts"
       - "electron.vite.config.ts"
       - "tsconfig*.json"
@@ -22,7 +25,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: dev-build-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -48,6 +51,8 @@ jobs:
     steps:
       - name: Check out git repository
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -88,6 +93,12 @@ jobs:
       # 安装项目依赖
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install vendors
+        run: pnpm run vendors:setup --frozen-lockfile
+
+      - name: Build vendors
+        run: pnpm run vendors:build
 
       # 构建各平台代表性产物
       - name: Build ${{ matrix.name }}
