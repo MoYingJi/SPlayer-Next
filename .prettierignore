@@ -1,5 +1,7 @@
 out
 dist
+package/
+vendor/
 
 pnpm-lock.yaml
 LICENSE.md
