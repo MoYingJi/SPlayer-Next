@@ -317,7 +317,7 @@ export interface McpAgentApp {
 export interface OnlineLyricSettings {
   /** 启用在线 TTML 歌词 */
   enableOnlineTTMLLyric: boolean;
-  /** AMLL TTML DB 服务地址，需含 %s 占位符 */
+  /** AMLL TTML DB 镜像地址模板，需含 %s，%p 可选；留空使用官方 API */
   amllDbServer: string;
 }
 

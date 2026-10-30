@@ -1059,12 +1059,12 @@
     "amllDbServer": {
       "label": "AMLL TTML DB Server",
       "description": "Make sure the URL is correct, otherwise lyric fetch will fail",
-      "placeholder": "Enter AMLL TTML DB URL",
+      "placeholder": "Leave empty to use the official API",
       "warning": "If you do not know what this does, please leave it as default",
-      "hint": "URL must be valid and contain the required placeholders",
-      "placeholders": "%p is the platform path, %s is the song ID",
+      "hint": "Leave empty to use the official AMLL API; a mirror URL must contain %s",
+      "placeholders": "%s is the song ID (required), %p is the platform path (optional)",
       "docsHint": "More info at",
-      "invalid": "Invalid URL — required placeholders missing"
+      "invalid": "Invalid URL — %s placeholder missing"
     },
     "enableExcludeLyrics": {
       "label": "Enable Lyric Exclusion",

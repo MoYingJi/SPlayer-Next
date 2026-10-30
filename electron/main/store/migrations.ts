@@ -19,4 +19,13 @@ export const migrations: Migration[] = [
       if ((data.update.channel as string) === "alpha") data.update.channel = "beta";
     },
   },
+  {
+    // 旧默认镜像改为留空，走 AMLL 官方 API；用户自定义的镜像保持不变
+    version: 2,
+    migrate: (data) => {
+      if (data.lyric.amllDbServer === "https://amlldb.bikonoo.com/%p/%s.ttml") {
+        data.lyric.amllDbServer = "";
+      }
+    },
+  },
 ];
