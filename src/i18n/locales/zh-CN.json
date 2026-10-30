@@ -1151,7 +1151,7 @@
       "restartRequiredTitle": "需要重启应用",
       "restartRequiredContent": "此设置需要重启应用后生效。确定保存并立即重启吗？",
       "testChannelTitle": "切换到测试通道",
-      "testChannelContent": "Beta 与 Alpha 通道会提前收到测试版本，其中 Alpha 版本可能非常不稳定。确定切换吗？",
+      "testChannelContent": "Beta 与 Nightly 通道会提前收到测试版本，其中 Nightly 版本可能非常不稳定。确定切换吗？",
       "kugouLoginVersionTitle": "切换 KG 登录版本",
       "kugouLoginVersionContent": "切换后当前登录凭据与新版本不匹配，需退出登录并重新扫码，否则会员权益与高音质解析会失效。确定切换吗？",
       "exclusiveModeTitle": "切换到独占模式",
@@ -1837,7 +1837,6 @@
       "description": "选择接收更新的通道，切换通道不会自动降级",
       "stable": "正式版",
       "beta": "Beta 预览版",
-      "alpha": "Alpha 内测版",
       "nightly": "Nightly 持续构建"
     },
     "showPerformanceMonitor": {

@@ -420,7 +420,7 @@ export interface WindowStates {
 }
 
 /** 应用更新通道候选值，同时作为运行时校验名单 */
-export const UPDATE_CHANNELS = ["stable", "beta", "alpha", "nightly"] as const;
+export const UPDATE_CHANNELS = ["stable", "beta", "nightly"] as const;
 
 /** 应用更新通道 */
 export type UpdateChannel = (typeof UPDATE_CHANNELS)[number];
@@ -429,7 +429,7 @@ export type UpdateChannel = (typeof UPDATE_CHANNELS)[number];
 export interface AppUpdateSettings {
   /** 自动检查更新 */
   autoCheck: boolean;
-  /** 更新通道：stable 正式通道 / beta 预览通道 / alpha 内测通道 / nightly 持续构建通道 */
+  /** 更新通道：stable 正式通道 / beta 预览通道 / nightly 持续构建通道 */
   channel: UpdateChannel;
 }
 
