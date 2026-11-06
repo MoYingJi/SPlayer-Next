@@ -14,6 +14,7 @@ export default defineConfig(
     "**/build/",
     "**/resources/",
     "**/public/",
+    "vendor/",
     "**/.git/",
     "**/.vitepress/",
     "native/*/index.d.ts",

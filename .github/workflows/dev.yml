@@ -4,7 +4,7 @@ name: Build Dev
 on:
   push:
     branches:
-      - dev
+      - dev-mo
     paths:
       - "src/**"
       - "electron/**"
@@ -15,6 +15,9 @@ on:
       - "scripts/**"
       - "package.json"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".gitmodules"
+      - "vendor/**"
       - "electron-builder.config.ts"
       - "electron.vite.config.ts"
       - "tsconfig*.json"
@@ -22,7 +25,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: dev-build-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -50,6 +53,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -90,6 +94,12 @@ jobs:
       # 安装项目依赖
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install vendors
+        run: pnpm run vendors:setup --frozen-lockfile
+
+      - name: Build vendors
+        run: pnpm run vendors:build
 
       # 注入 -dev 版本号，使其低于同基准的 Nightly，可通过 Nightly 通道更新
       - name: Generate Dev Version

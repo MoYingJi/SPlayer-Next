@@ -1,0 +1,8 @@
+/src/
+/pkg/
+
+# source
+/SPlayer-Next-git
+
+# packages
+/*.pkg.tar.*
